@@ -1,0 +1,44 @@
+OASISFormat: 0.4
+Name:        mosquitto
+Version:     0.1
+Synopsis:    bindings to mosquitto, the MQTT library
+Authors:     Markus W. Weissmann <markus.weissmann@in.tum.de>
+Maintainers: Markus W. Weissmann <markus.weissmann@in.tum.de>
+Homepage:    https://github.com/mwweissmann/ocaml-mosquitto/
+License:     MIT
+Plugins:     META (0.4)
+
+Library "mosquitto"
+  Path:       src
+  CSources:   mosquitto_stubs.c
+  CCOpt:      -O2 -Wall -Wextra -Wno-unused-parameter -I $libdir
+  CCLib:      -lmosquitto
+  BuildTools: ocamlbuild
+  Modules:    Mosquitto
+  BuildDepends: unix, bytes, result
+
+Document doclib
+  Title:                API reference for mosquitto
+  Type:                 ocamlbuild (0.3)
+  Install:              false
+  BuildTools+:          ocamlbuild, ocamldoc
+  XOCamlbuildPath:      src
+  XOCamlbuildLibraries: mosquitto
+
+Executable "subscribe"
+  Path:       tools
+  MainIs:     subscribe.ml
+  BuildDepends: mosquitto
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  Install: false
+
+Executable "publish"
+  Path:       tools
+  MainIs:     publish.ml
+  BuildDepends: mosquitto
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  Install: false
+
+

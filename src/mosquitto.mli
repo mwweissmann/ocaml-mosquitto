@@ -8,6 +8,13 @@ type msg = {
   retain : bool;
 }
 
+module Version : sig
+  val version : int
+  val major : int
+  val minor : int
+  val revision : int
+end
+
 val create : string -> bool -> (t, [>`EUnix of Unix.error]) Result.result
 
 val connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
@@ -21,4 +28,6 @@ val subscribe : t -> string -> int -> (unit, [>`EUnix of Unix.error]) Result.res
 val callback_set : t -> (msg -> unit) -> unit
 
 val loop : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
+
+val loop_forever : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
 

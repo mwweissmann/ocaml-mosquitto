@@ -9,6 +9,12 @@ type msg = {
   retain : bool;
 }
 
+external initialize : unit -> (int * int * int * int) = "mqtt_initialize"
+
+module Version = struct
+  let version, major, minor, revision = initialize ()
+end
+
 external create : string -> bool -> (m * string, [>`EUnix of Unix.error]) Result.result = "mqtt_create"
 
 external mosquitto_connect : m -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_connect"
@@ -31,7 +37,6 @@ let callback_set (m, uid) f =
 external mosquitto_loop : m -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_loop"
 let loop (m, _) = mosquitto_loop m
 
-external mosquitto_initialize : unit -> unit = "mqtt_initialize"
-let () = mosquitto_initialize ()
-
+external mosquitto_loop_forever : m -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_loop_forever"
+let loop_forever (m, _) = mosquitto_loop_forever m
 

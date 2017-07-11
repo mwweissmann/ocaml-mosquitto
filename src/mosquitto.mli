@@ -1,12 +1,14 @@
 type t
 
-type msg = {
-  mid : int;
-  topic : string;
-  payload : string;
-  qos : int;
-  retain : bool;
-}
+module Message : sig
+  type t
+  val create : ?mid:int -> topic:string -> ?qos:int -> ?retain:bool -> string -> t
+  val mid : t -> int option
+  val topic : t -> string
+  val qos : t -> int
+  val retain : t -> bool
+  val payload : t -> string
+end
 
 module Version : sig
   val version : int
@@ -25,9 +27,24 @@ val publish : t -> string -> string -> int -> bool -> (unit, [>`EUnix of Unix.er
 
 val subscribe : t -> string -> int -> (unit, [>`EUnix of Unix.error]) Result.result
 
-val callback_set : t -> (msg -> unit) -> unit
+val set_callback_message : t -> (Message.t -> unit) -> unit
+
+val set_callback_connect : t -> (int -> unit) -> unit
+
+val set_callback_disconnect : t -> (int -> unit) -> unit
+
+val set_callback_publish : t -> (int -> unit) -> unit
+
+val set_callback_subscribe : t -> (int -> int list -> unit) -> unit
+
+val set_callback_unsubscribe : t -> (int -> unit) -> unit
+
+val set_callback_log : t -> (int -> string -> unit) -> unit
 
 val loop : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
 
 val loop_forever : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
+
+val socket : t -> Unix.file_descr
+
 

@@ -1,13 +1,27 @@
-type m
-type t = m * string
+type t
 
-type msg = {
-  mid : int;
-  topic : string;
-  payload : string;
-  qos : int;
-  retain : bool;
-}
+module Message = struct
+  type t = {
+    mid : int;
+    topic : string;
+    payload : string;
+    qos : int;
+    retain : bool;
+  }
+  let create ?mid ~topic ?qos:(q=0) ?retain:(r=false) payload =
+    let mid = match mid with | Some x when ((x land 0xFFFF) = x) -> x | _ -> -1 in
+    { mid; topic; payload; qos = q; retain = r }
+
+  let mid x = if (x.mid land 0xFFFF) = x.mid then Some x.mid else None
+
+  let topic x = x.topic
+
+  let payload x = x.payload
+
+  let qos x = x.qos
+
+  let retain x = x.retain
+end
 
 external initialize : unit -> (int * int * int * int) = "mqtt_initialize"
 
@@ -15,28 +29,43 @@ module Version = struct
   let version, major, minor, revision = initialize ()
 end
 
-external create : string -> bool -> (m * string, [>`EUnix of Unix.error]) Result.result = "mqtt_create"
+external create : string -> bool -> (t, [>`EUnix of Unix.error]) Result.result = "mqtt_create"
 
-external mosquitto_connect : m -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_connect"
-let connect (m, _) = mosquitto_connect m
+external connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_connect"
 
-external mosquitto_reconnect : m -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_reconnect"
-let reconnect (m, _) = mosquitto_reconnect m
+external reconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_reconnect"
 
-external mosquitto_publish : m -> string -> string -> int -> bool -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_publish"
-let publish (m, _) = mosquitto_publish m
+external publish : t -> string -> string -> int -> bool -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_publish"
 
-external mosquitto_subscribe : m -> string -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_subscribe"
-let subscribe (m, _) = mosquitto_subscribe m
+external subscribe : t -> string -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_subscribe"
 
-external mosquitto_callback_set : m -> unit = "mqtt_message_callback_set"
-let callback_set (m, uid) f =
-  let () = Callback.register uid f in
-  mosquitto_callback_set m
+external mosquitto_message_callback_set : t -> string = "mqtt_message_callback_set"
+let set_callback_message m = Callback.register (mosquitto_message_callback_set m)
 
-external mosquitto_loop : m -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_loop"
-let loop (m, _) = mosquitto_loop m
+external mosquitto_subscribe_callback_set : t -> string = "mqtt_subscribe_callback_set"
+let set_callback_subscribe m = Callback.register (mosquitto_subscribe_callback_set m)
 
-external mosquitto_loop_forever : m -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_loop_forever"
-let loop_forever (m, _) = mosquitto_loop_forever m
+external mosquitto_unsubscribe_callback_set : t -> string = "mqtt_unsubscribe_callback_set"
+let set_callback_unsubscribe m = Callback.register (mosquitto_unsubscribe_callback_set m)
+
+external mosquitto_publish_callback_set : t -> string = "mqtt_publish_callback_set"
+let set_callback_publish m = Callback.register (mosquitto_publish_callback_set m)
+
+external mosquitto_message_callback_set : t -> string = "mqtt_message_callback_set"
+let set_callback_message m = Callback.register (mosquitto_message_callback_set m)
+
+external mosquitto_connect_callback_set : t -> string = "mqtt_connect_callback_set"
+let set_callback_connect m = Callback.register (mosquitto_connect_callback_set m)
+
+external mosquitto_disconnect_callback_set : t -> string = "mqtt_disconnect_callback_set"
+let set_callback_disconnect m = Callback.register (mosquitto_disconnect_callback_set m)
+
+external mosquitto_log_callback_set : t -> string = "mqtt_log_callback_set"
+let set_callback_log m = Callback.register (mosquitto_log_callback_set m)
+
+external loop : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_loop"
+
+external loop_forever : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_loop_forever"
+
+external socket : t -> Unix.file_descr = "mqtt_socket"
 

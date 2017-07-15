@@ -8,8 +8,9 @@ module Message = struct
     qos : int;
     retain : bool;
   }
-  let create ?mid ~topic ?qos:(q=0) ?retain:(r=false) payload =
-    let mid = match mid with | Some x when ((x land 0xFFFF) = x) -> x | _ -> -1 in
+
+  let create ?mid:(m=(-1)) ~topic ?qos:(q=0) ?retain:(r=false) payload =
+    let mid = if ((m land 0xFFFF) = m) then m else -1 in
     { mid; topic; payload; qos = q; retain = r }
 
   let mid x = if (x.mid land 0xFFFF) = x.mid then Some x.mid else None
@@ -35,7 +36,7 @@ external connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) 
 
 external reconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_reconnect"
 
-external publish : t -> string -> string -> int -> bool -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_publish"
+external publish : t -> Message.t -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_publish"
 
 external subscribe : t -> string -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_subscribe"
 

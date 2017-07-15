@@ -190,35 +190,37 @@ CAMLprim value mqtt_reconnect(value mqtt) {
   CAMLreturn(result);
 }
 
-CAMLprim value mqtt_publish(value mqtt, value topic, value payload, value qos, value retain) {
-  CAMLparam5(mqtt, topic, payload, qos, retain);
+CAMLprim value mqtt_publish(value mqtt, value msg) {
+  CAMLparam2(mqtt, msg);
   CAMLlocal2(result, perrno);
 
-  char *topic_, *payload_;
+  char *topic, *payload;
   size_t topic_len, payload_len;
   struct ocmq *mq;
-  int qos_, rc, lerrno;
-  bool retain_;
+  int qos, rc, lerrno, mid, *mid_pt;
+  bool retain;
 
-  qos_ = Long_val(qos);
-  retain_ = Bool_val(retain);
+  qos = Long_val(Field(msg, 3));
+  retain = Bool_val(Field(msg, 4));
+  mid = Long_val(Field(msg, 0));
+  mid_pt = ((mid && 0xFFFF) == mid) ? &mid : NULL;
 
   mq = (struct ocmq*)mqtt;
 
-  topic_len = caml_string_length(topic);
-  topic_ = calloc(1, topic_len + 1);
-  memcpy(topic_, String_val(topic), topic_len);
-  topic_[topic_len] = '\0';
+  topic_len = caml_string_length(Field(msg, 1));
+  topic = calloc(1, topic_len + 1);
+  memcpy(topic, String_val(Field(msg, 1)), topic_len);
+  topic[topic_len] = '\0';
 
-  payload_len = caml_string_length(payload);
-  payload_ = calloc(1, payload_len);
-  memcpy(payload_, String_val(payload), payload_len);
+  payload_len = caml_string_length(Field(msg, 2));
+  payload = calloc(1, payload_len);
+  memcpy(payload, String_val(Field(msg, 2)), payload_len);
 
   caml_release_runtime_system();
 
-  rc = mosquitto_publish(mq->conn, NULL, topic_, payload_len, payload_, qos_, retain_);
-  free(topic_);
-  free(payload_);
+  rc = mosquitto_publish(mq->conn, mid_pt, topic, payload_len, payload, qos, retain);
+  free(topic);
+  free(payload);
 
   caml_acquire_runtime_system();
 
@@ -325,6 +327,27 @@ void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_me
   caml_release_runtime_system();
 }
 
+void mqtt_callback_log(struct mosquitto *m, void *obj, int lvl, const char *str) {
+  struct ocmq *mq;
+  mq = (struct ocmq*)obj;
+  value str_;
+  size_t len;
+
+  caml_acquire_runtime_system();
+
+  if (NULL == mq->cb[CBLOG]) {
+    mq->cb[CBLOG] = caml_named_value(mq->uid[CBLOG]);
+  }
+  if (NULL != mq->cb[CBLOG]) {
+    len = strlen(str);
+    str_ = caml_alloc_string(len);
+    memcpy(String_val(str_), str, len);
+    caml_callback2(*(mq->cb[CBLOG]), Long_val(lvl), str_);
+  }
+
+  caml_release_runtime_system();
+}
+
 void mqtt_callback_con(struct mosquitto *m, void *obj, int rc) {
   struct ocmq *mq;
   mq = (struct ocmq*)obj;
@@ -359,7 +382,7 @@ void mqtt_callback_dco(struct mosquitto *m, void *obj, int rc) {
 
 void mqtt_callback_sub(struct mosquitto *m, void *obj, int mid, int qos_count, const int *qos) {
   struct ocmq *mq;
-  value qos_;
+  value cli, cons;
   mq = (struct ocmq*)obj;
 
   caml_acquire_runtime_system();
@@ -368,9 +391,14 @@ void mqtt_callback_sub(struct mosquitto *m, void *obj, int mid, int qos_count, c
     mq->cb[CBSUBSCRIBE] = caml_named_value(mq->uid[CBSUBSCRIBE]);
   }
   if (NULL != mq->cb[CBSUBSCRIBE]) {
-    // TODO: alloc list of qos, fix call!
-    // qos_ = ..
-    caml_callback(*(mq->cb[CBSUBSCRIBE]), Val_unit);
+    cli = Val_emptylist;
+    for (int i = qos_count; i > 0; i--) {
+      cons = caml_alloc(2, 0);
+      Store_field(cons, 0, Val_long(qos[i - 1]));
+      Store_field(cons, 1, cli);
+      cli = cons;
+    }
+    caml_callback2(*(mq->cb[CBSUBSCRIBE]), Val_long(mid), cli);
   }
 
   caml_release_runtime_system();
@@ -509,6 +537,27 @@ CAMLprim value mqtt_publish_callback_set(value mqtt) {
   len = strlen(mq->uid[CBPUBLISH]);
   uid = caml_alloc_string(len);
   memcpy(String_val(uid), (void*)mq->uid[CBPUBLISH], len);
+
+  CAMLreturn(uid);
+}
+
+CAMLprim value mqtt_log_callback_set(value mqtt) {
+  CAMLparam1(mqtt);
+  CAMLlocal1(uid);
+  size_t len;
+  struct ocmq *mq;
+
+  mq = (struct ocmq*)mqtt;
+
+  caml_release_runtime_system();
+
+  mosquitto_log_callback_set(mq->conn, mqtt_callback_log);
+
+  caml_acquire_runtime_system();
+
+  len = strlen(mq->uid[CBLOG]);
+  uid = caml_alloc_string(len);
+  memcpy(String_val(uid), (void*)mq->uid[CBLOG], len);
 
   CAMLreturn(uid);
 }

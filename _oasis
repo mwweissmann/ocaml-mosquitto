@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        mosquitto
-Version:     0.1
+Version:     0.2
 Synopsis:    bindings to mosquitto, the MQTT library
 Authors:     Markus W. Weissmann <markus.weissmann@in.tum.de>
 Maintainers: Markus W. Weissmann <markus.weissmann@in.tum.de>

@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: ac23ef35ddc15c2c4561901d3cfe0f75)
-version = "0.1.1"
+# DO NOT EDIT (digest: 3d1eb55242a3c53376402c9b3928baa2)
+version = "0.2"
 description = "bindings to mosquitto, the MQTT library"
 requires = "unix bytes result"
 archive(byte) = "mosquitto.cma"

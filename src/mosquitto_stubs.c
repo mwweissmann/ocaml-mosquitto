@@ -383,6 +383,7 @@ void mqtt_callback_dco(struct mosquitto *m, void *obj, int rc) {
 void mqtt_callback_sub(struct mosquitto *m, void *obj, int mid, int qos_count, const int *qos) {
   struct ocmq *mq;
   value cli, cons;
+  int i;
   mq = (struct ocmq*)obj;
 
   caml_acquire_runtime_system();
@@ -392,7 +393,7 @@ void mqtt_callback_sub(struct mosquitto *m, void *obj, int mid, int qos_count, c
   }
   if (NULL != mq->cb[CBSUBSCRIBE]) {
     cli = Val_emptylist;
-    for (int i = qos_count; i > 0; i--) {
+    for (i = qos_count; i > 0; i--) {
       cons = caml_alloc(2, 0);
       Store_field(cons, 0, Val_long(qos[i - 1]));
       Store_field(cons, 1, cli);

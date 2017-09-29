@@ -234,6 +234,7 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
       case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
       case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
       case MOSQ_ERR_PAYLOAD_SIZE: lerrno = EMSGSIZE; break;
+      case MOSQ_ERR_ERRNO: lerrno = errno; break;
       default: assert(false);
     }
     perrno = caml_alloc(2, 0);
@@ -613,7 +614,7 @@ CAMLprim value mqtt_loop(value mqtt, value timeout, value max_packets) {
       case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
       case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
       case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_ERRNO: break;
+      case MOSQ_ERR_ERRNO: lerrno = errno; break;
       default: assert(false);
     }
     perrno = caml_alloc(2, 0);
@@ -656,7 +657,7 @@ CAMLprim value mqtt_loop_forever(value mqtt, value timeout, value max_packets) {
       case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
       case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
       case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_ERRNO: break;
+      case MOSQ_ERR_ERRNO: lerrno = errno; break;
       default: assert(false);
     }
     perrno = caml_alloc(2, 0);

@@ -70,3 +70,8 @@ external loop_forever : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Resul
 
 external socket : t -> Unix.file_descr = "mqtt_socket"
 
+external loop_read : t -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_loop_read"
+
+external loop_write : t -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_loop_write"
+
+external loop_misc : t -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_loop_misc"

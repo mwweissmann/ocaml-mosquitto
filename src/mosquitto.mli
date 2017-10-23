@@ -47,4 +47,8 @@ val loop_forever : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.res
 
 val socket : t -> Unix.file_descr
 
+val loop_read : t -> int -> (unit, [>`EUnix of Unix.error]) Result.result
 
+val loop_write : t -> int -> (unit, [>`EUnix of Unix.error]) Result.result
+
+val loop_misc : t -> (unit, [>`EUnix of Unix.error]) Result.result

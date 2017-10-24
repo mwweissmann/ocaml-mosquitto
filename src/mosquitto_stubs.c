@@ -234,6 +234,7 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
       case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
       case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
       case MOSQ_ERR_PAYLOAD_SIZE: lerrno = EMSGSIZE; break;
+      case MOSQ_ERR_ERRNO: lerrno = errno; break;
       default: assert(false);
     }
     perrno = caml_alloc(2, 0);
@@ -613,7 +614,7 @@ CAMLprim value mqtt_loop(value mqtt, value timeout, value max_packets) {
       case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
       case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
       case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_ERRNO: break;
+      case MOSQ_ERR_ERRNO: lerrno = errno; break;
       default: assert(false);
     }
     perrno = caml_alloc(2, 0);
@@ -656,7 +657,7 @@ CAMLprim value mqtt_loop_forever(value mqtt, value timeout, value max_packets) {
       case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
       case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
       case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_ERRNO: break;
+      case MOSQ_ERR_ERRNO: lerrno = errno; break;
       default: assert(false);
     }
     perrno = caml_alloc(2, 0);
@@ -681,3 +682,120 @@ CAMLprim value mqtt_socket(value mqtt) {
   CAMLreturn(Val_long(fd));
 }
 
+CAMLprim value mqtt_loop_read(value mqtt, value max_packets) {
+  CAMLparam2(mqtt, max_packets);
+  CAMLlocal2(perrno, result);
+  struct ocmq *mq;
+  int max_packets_, lerrno, rc;
+
+  mq = (struct ocmq*)mqtt;
+
+  max_packets_ = Long_val(max_packets);
+
+  caml_release_runtime_system();
+  
+  rc = mosquitto_loop_read(mq->conn, max_packets_);
+
+  caml_acquire_runtime_system();
+
+  if (MOSQ_ERR_SUCCESS == rc) {
+    result = RESULT_OK;
+    Store_field(result, 0, Val_unit);
+  } else {
+    switch (rc) {
+      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
+      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
+      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
+      case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
+      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
+      case MOSQ_ERR_ERRNO: lerrno = errno; break;
+      default: assert(false);
+    }
+    perrno = caml_alloc(2, 0);
+    Store_field(perrno, 0, eunix); // `EUnix
+    Store_field(perrno, 1, unix_error_of_code(lerrno));
+
+    result = RESULT_ERROR;
+    Store_field(result, 0, perrno);
+  }
+
+  CAMLreturn(result);
+}
+
+CAMLprim value mqtt_loop_write(value mqtt, value max_packets) {
+  CAMLparam2(mqtt, max_packets);
+  CAMLlocal2(perrno, result);
+  struct ocmq *mq;
+  int max_packets_, lerrno, rc;
+
+  mq = (struct ocmq*)mqtt;
+
+  max_packets_ = Long_val(max_packets);
+
+  caml_release_runtime_system();
+  
+  rc = mosquitto_loop_write(mq->conn, max_packets_);
+
+  caml_acquire_runtime_system();
+
+  if (MOSQ_ERR_SUCCESS == rc) {
+    result = RESULT_OK;
+    Store_field(result, 0, Val_unit);
+  } else {
+    switch (rc) {
+      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
+      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
+      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
+      case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
+      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
+      case MOSQ_ERR_ERRNO: lerrno = errno; break;
+      default: assert(false);
+    }
+    perrno = caml_alloc(2, 0);
+    Store_field(perrno, 0, eunix); // `EUnix
+    Store_field(perrno, 1, unix_error_of_code(lerrno));
+
+    result = RESULT_ERROR;
+    Store_field(result, 0, perrno);
+  }
+
+  CAMLreturn(result);
+}
+
+CAMLprim value mqtt_loop_misc(value mqtt) {
+  CAMLparam1(mqtt);
+  CAMLlocal2(perrno, result);
+  struct ocmq *mq;
+  int lerrno, rc;
+
+  mq = (struct ocmq*)mqtt;
+
+  caml_release_runtime_system();
+  
+  rc = mosquitto_loop_misc(mq->conn);
+
+  caml_acquire_runtime_system();
+
+  if (MOSQ_ERR_SUCCESS == rc) {
+    result = RESULT_OK;
+    Store_field(result, 0, Val_unit);
+  } else {
+    switch (rc) {
+      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
+      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
+      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
+      case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
+      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
+      case MOSQ_ERR_ERRNO: lerrno = errno; break;
+      default: assert(false);
+    }
+    perrno = caml_alloc(2, 0);
+    Store_field(perrno, 0, eunix); // `EUnix
+    Store_field(perrno, 1, unix_error_of_code(lerrno));
+
+    result = RESULT_ERROR;
+    Store_field(result, 0, perrno);
+  }
+
+  CAMLreturn(result);
+}

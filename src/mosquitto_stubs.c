@@ -61,9 +61,36 @@ CAMLprim value mqtt_initialize(value unit) {
   CAMLreturn(result);
 }
 
+static value wrap_result(int rc, int lerrno) {
+  CAMLparam0();
+  CAMLlocal2(result, perrno);
+  if (MOSQ_ERR_SUCCESS == rc) {
+    result = RESULT_OK;
+    Store_field(result, 0, Val_unit);
+  } else {
+    switch (rc) {
+      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
+      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
+      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
+      case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
+      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
+      case MOSQ_ERR_PAYLOAD_SIZE: lerrno = EMSGSIZE; break;
+      case MOSQ_ERR_ERRNO: break;
+      default: lerrno = EPERM; break;
+    }
+    perrno = caml_alloc(2, 0);
+    Store_field(perrno, 0, eunix); // `EUnix
+    Store_field(perrno, 1, unix_error_of_code(lerrno));
+
+    result = RESULT_ERROR;
+    Store_field(result, 0, perrno);
+  }
+  CAMLreturn(result);
+}
+
 CAMLprim value mqtt_create(value id, value clean_session) {
   CAMLparam2(id, clean_session);
-  CAMLlocal4(result, mqtt, perrno, uid);
+  CAMLlocal3(result, mqtt, uid);
 
   struct ocmq *mq;
   int lerrno;
@@ -88,31 +115,21 @@ CAMLprim value mqtt_create(value id, value clean_session) {
   snprintf(mq->uid[CBUNSUBSCRIBE], 32, "%p_unsubscribe", (void*)mq);
   snprintf(mq->uid[CBLOG], 32, "%p_log", (void*)mq);
 
-  if (NULL == (mq->conn = mosquitto_new(id_, clean_session_, mq))) {
-    lerrno = errno;
+  mq->conn = mosquitto_new(id_, clean_session_, mq);
+  if (NULL != mq) {
+    result = wrap_result(MOSQ_ERR_SUCCESS, errno);
+  } else {
+    result = wrap_result(MOSQ_ERR_ERRNO, errno);
   }
   free(id_);
 
   caml_acquire_runtime_system();
-
-  if (NULL != mq) {
-    result = RESULT_OK;
-    Store_field(result, 0, (value)mq);
-  } else {
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
-
   CAMLreturn(result);
 }
 
 CAMLprim value mqtt_connect(value mqtt, value host, value port, value keepalive) {
   CAMLparam4(mqtt, host, port, keepalive);
-  CAMLlocal2(result, perrno);
+  CAMLlocal1(result);
 
   struct ocmq *mq;
   char *host_;
@@ -129,35 +146,17 @@ CAMLprim value mqtt_connect(value mqtt, value host, value port, value keepalive)
   mq = (struct ocmq*)mqtt;
 
   caml_release_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS != (rc = mosquitto_connect(mq->conn, host_, port_, keepalive_))) {
-    lerrno = errno;
-  }
+  rc = mosquitto_connect(mq->conn, host_, port_, keepalive_);
+  result = wrap_result(rc, errno);
   free(host_);
-
   caml_acquire_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS == rc) {
-    result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
-  } else {
-    if (MOSQ_ERR_INVAL == rc) {
-      lerrno = EINVAL;
-    }
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
 
   CAMLreturn(result);
 }
 
 CAMLprim value mqtt_reconnect(value mqtt) {
   CAMLparam1(mqtt);
-  CAMLlocal2(result, perrno);
+  CAMLlocal1(result);
 
   struct ocmq *mq;
   int lerrno, rc;
@@ -165,34 +164,16 @@ CAMLprim value mqtt_reconnect(value mqtt) {
   mq = (struct ocmq*)mqtt;
 
   caml_release_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS != (rc = mosquitto_reconnect(mq->conn))) {
-    lerrno = errno;
-  }
-
+  rc = mosquitto_reconnect(mq->conn);
+  result = wrap_result(rc, errno);
   caml_acquire_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS == rc) {
-    result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
-  } else {
-    if (MOSQ_ERR_INVAL == rc) {
-      lerrno = EINVAL;
-    }
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
 
   CAMLreturn(result);
 }
 
 CAMLprim value mqtt_publish(value mqtt, value msg) {
   CAMLparam2(mqtt, msg);
-  CAMLlocal2(result, perrno);
+  CAMLlocal1(result);
 
   char *topic, *payload;
   size_t topic_len, payload_len;
@@ -217,40 +198,18 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
   memcpy(payload, String_val(Field(msg, 2)), payload_len);
 
   caml_release_runtime_system();
-
   rc = mosquitto_publish(mq->conn, mid_pt, topic, payload_len, payload, qos, retain);
+  result = wrap_result(rc, errno);
   free(topic);
   free(payload);
-
   caml_acquire_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS == rc) {
-    result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
-  } else {
-    switch (rc) {
-      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
-      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
-      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
-      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_PAYLOAD_SIZE: lerrno = EMSGSIZE; break;
-      case MOSQ_ERR_ERRNO: lerrno = errno; break;
-      default: assert(false);
-    }
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
 
   CAMLreturn(result);
 }
 
 CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
   CAMLparam3(mqtt, topic, qos);
-  CAMLlocal2(perrno, result);
+  CAMLlocal1(result);
 
   char *topic_;
   size_t topic_len;
@@ -266,29 +225,10 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
   topic_[topic_len] = '\0';
 
   caml_release_runtime_system();
-
   rc = mosquitto_subscribe(mq->conn, NULL, topic_, qos_);
+  result = wrap_result(rc, errno);
   free(topic_);
-
   caml_acquire_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS == rc) {
-    result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
-  } else {
-    switch (rc) {
-      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
-      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
-      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
-      default: assert(false);
-    }
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
 
   CAMLreturn(result);
 }
@@ -587,7 +527,7 @@ CAMLprim value mqtt_message_callback_set(value mqtt) {
 
 CAMLprim value mqtt_loop(value mqtt, value timeout, value max_packets) {
   CAMLparam3(mqtt, timeout, max_packets);
-  CAMLlocal2(perrno, result);
+  CAMLlocal1(result);
   struct ocmq *mq;
   int timeout_, max_packets_, lerrno, rc;
 
@@ -597,40 +537,16 @@ CAMLprim value mqtt_loop(value mqtt, value timeout, value max_packets) {
   max_packets_ = Long_val(max_packets);
 
   caml_release_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS != (rc = mosquitto_loop(mq->conn, timeout_, max_packets_))) {
-    lerrno = errno;
-  }
-
+  rc = mosquitto_loop(mq->conn, timeout_, max_packets_);
+  result = wrap_result(rc, errno);
   caml_acquire_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS == rc) {
-    result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
-  } else {
-    switch (rc) {
-      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
-      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
-      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
-      case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
-      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_ERRNO: lerrno = errno; break;
-      default: assert(false);
-    }
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
 
   CAMLreturn(result);
 }
 
 CAMLprim value mqtt_loop_forever(value mqtt, value timeout, value max_packets) {
   CAMLparam3(mqtt, timeout, max_packets);
-  CAMLlocal2(perrno, result);
+  CAMLlocal1(result);
   struct ocmq *mq;
   int timeout_, max_packets_, lerrno, rc;
 
@@ -640,33 +556,9 @@ CAMLprim value mqtt_loop_forever(value mqtt, value timeout, value max_packets) {
   max_packets_ = Long_val(max_packets);
 
   caml_release_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS != (rc = mosquitto_loop_forever(mq->conn, timeout_, max_packets_))) {
-    lerrno = errno;
-  }
-
+  rc = mosquitto_loop_forever(mq->conn, timeout_, max_packets_);
+  result = wrap_result(rc, errno);
   caml_acquire_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS == rc) {
-    result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
-  } else {
-    switch (rc) {
-      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
-      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
-      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
-      case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
-      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_ERRNO: lerrno = errno; break;
-      default: assert(false);
-    }
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
 
   CAMLreturn(result);
 }
@@ -684,7 +576,7 @@ CAMLprim value mqtt_socket(value mqtt) {
 
 CAMLprim value mqtt_loop_read(value mqtt, value max_packets) {
   CAMLparam2(mqtt, max_packets);
-  CAMLlocal2(perrno, result);
+  CAMLlocal1(result);
   struct ocmq *mq;
   int max_packets_, lerrno, rc;
 
@@ -693,38 +585,16 @@ CAMLprim value mqtt_loop_read(value mqtt, value max_packets) {
   max_packets_ = Long_val(max_packets);
 
   caml_release_runtime_system();
-  
   rc = mosquitto_loop_read(mq->conn, max_packets_);
-
+  result = wrap_result(rc, errno);
   caml_acquire_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS == rc) {
-    result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
-  } else {
-    switch (rc) {
-      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
-      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
-      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
-      case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
-      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_ERRNO: lerrno = errno; break;
-      default: assert(false);
-    }
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
 
   CAMLreturn(result);
 }
 
 CAMLprim value mqtt_loop_write(value mqtt, value max_packets) {
   CAMLparam2(mqtt, max_packets);
-  CAMLlocal2(perrno, result);
+  CAMLlocal1(result);
   struct ocmq *mq;
   int max_packets_, lerrno, rc;
 
@@ -733,69 +603,25 @@ CAMLprim value mqtt_loop_write(value mqtt, value max_packets) {
   max_packets_ = Long_val(max_packets);
 
   caml_release_runtime_system();
-  
   rc = mosquitto_loop_write(mq->conn, max_packets_);
-
+  result = wrap_result(rc, errno);
   caml_acquire_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS == rc) {
-    result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
-  } else {
-    switch (rc) {
-      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
-      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
-      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
-      case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
-      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_ERRNO: lerrno = errno; break;
-      default: assert(false);
-    }
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
 
   CAMLreturn(result);
 }
 
 CAMLprim value mqtt_loop_misc(value mqtt) {
   CAMLparam1(mqtt);
-  CAMLlocal2(perrno, result);
+  CAMLlocal1(result);
   struct ocmq *mq;
   int lerrno, rc;
 
   mq = (struct ocmq*)mqtt;
 
   caml_release_runtime_system();
-  
   rc = mosquitto_loop_misc(mq->conn);
-
+  result = wrap_result(rc, errno);
   caml_acquire_runtime_system();
-
-  if (MOSQ_ERR_SUCCESS == rc) {
-    result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
-  } else {
-    switch (rc) {
-      case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
-      case MOSQ_ERR_NOMEM: lerrno = ENOMEM; break;
-      case MOSQ_ERR_NO_CONN: lerrno = ENOTCONN; break;
-      case MOSQ_ERR_CONN_LOST: lerrno =  ENOTCONN; break;
-      case MOSQ_ERR_PROTOCOL: lerrno = EPROTOTYPE; break;
-      case MOSQ_ERR_ERRNO: lerrno = errno; break;
-      default: assert(false);
-    }
-    perrno = caml_alloc(2, 0);
-    Store_field(perrno, 0, eunix); // `EUnix
-    Store_field(perrno, 1, unix_error_of_code(lerrno));
-
-    result = RESULT_ERROR;
-    Store_field(result, 0, perrno);
-  }
 
   CAMLreturn(result);
 }

@@ -95,7 +95,6 @@ CAMLprim value mqtt_create(value id, value clean_session) {
   CAMLlocal3(result, mqtt, uid);
 
   struct ocmq *mq;
-  int lerrno;
   char *id_;
   bool clean_session_;
   size_t id_len;
@@ -138,7 +137,7 @@ CAMLprim value mqtt_connect(value mqtt, value host, value port, value keepalive)
   struct ocmq *mq;
   char *host_;
   size_t len;
-  int lerrno, port_, keepalive_, rc;
+  int port_, keepalive_, rc;
   len = caml_string_length(host);
   host_ = calloc(1, 1 + len);
   memcpy(host_, String_val(host), len);
@@ -163,7 +162,7 @@ CAMLprim value mqtt_reconnect(value mqtt) {
   CAMLlocal1(result);
 
   struct ocmq *mq;
-  int lerrno, rc;
+  int rc;
 
   mq = (struct ocmq*)mqtt;
 
@@ -182,7 +181,7 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
   char *topic, *payload;
   size_t topic_len, payload_len;
   struct ocmq *mq;
-  int qos, rc, lerrno, mid, *mid_pt;
+  int qos, rc, mid, *mid_pt;
   bool retain;
 
   qos = Long_val(Field(msg, 3));
@@ -218,7 +217,7 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
   char *topic_;
   size_t topic_len;
   struct ocmq *mq;
-  int rc, lerrno, qos_;
+  int rc, qos_;
 
   qos_ = Long_val(qos);
   mq = (struct ocmq*)mqtt;
@@ -533,7 +532,7 @@ CAMLprim value mqtt_loop(value mqtt, value timeout, value max_packets) {
   CAMLparam3(mqtt, timeout, max_packets);
   CAMLlocal1(result);
   struct ocmq *mq;
-  int timeout_, max_packets_, lerrno, rc;
+  int timeout_, max_packets_, rc;
 
   mq = (struct ocmq*)mqtt;
   timeout_ = Long_val(timeout);
@@ -552,7 +551,7 @@ CAMLprim value mqtt_loop_forever(value mqtt, value timeout, value max_packets) {
   CAMLparam3(mqtt, timeout, max_packets);
   CAMLlocal1(result);
   struct ocmq *mq;
-  int timeout_, max_packets_, lerrno, rc;
+  int timeout_, max_packets_, rc;
 
   mq = (struct ocmq*)mqtt;
   timeout_ = Long_val(timeout);
@@ -582,7 +581,7 @@ CAMLprim value mqtt_loop_read(value mqtt, value max_packets) {
   CAMLparam2(mqtt, max_packets);
   CAMLlocal1(result);
   struct ocmq *mq;
-  int max_packets_, lerrno, rc;
+  int max_packets_, rc;
 
   mq = (struct ocmq*)mqtt;
 
@@ -600,7 +599,7 @@ CAMLprim value mqtt_loop_write(value mqtt, value max_packets) {
   CAMLparam2(mqtt, max_packets);
   CAMLlocal1(result);
   struct ocmq *mq;
-  int max_packets_, lerrno, rc;
+  int max_packets_, rc;
 
   mq = (struct ocmq*)mqtt;
 
@@ -618,7 +617,7 @@ CAMLprim value mqtt_loop_misc(value mqtt) {
   CAMLparam1(mqtt);
   CAMLlocal1(result);
   struct ocmq *mq;
-  int lerrno, rc;
+  int rc;
 
   mq = (struct ocmq*)mqtt;
 

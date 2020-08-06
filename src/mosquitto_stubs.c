@@ -63,12 +63,12 @@ CAMLprim value mqtt_initialize(value unit) {
   CAMLreturn(result);
 }
 
-static value wrap_result(int rc, int lerrno) {
-  CAMLparam0();
+static value wrap_result(int rc, value retval, int lerrno) {
+  CAMLparam1(retval);
   CAMLlocal2(result, perrno);
   if (MOSQ_ERR_SUCCESS == rc) {
     result = RESULT_OK;
-    Store_field(result, 0, Val_unit);
+    Store_field(result, 0, retval);
   } else {
     switch (rc) {
       case MOSQ_ERR_INVAL: lerrno = EINVAL; break;
@@ -107,7 +107,7 @@ CAMLprim value mqtt_create(value id, value clean_session) {
   clean_session_ = Bool_val(clean_session);
 
   void *cbid = callback_id++;
-  
+
   caml_release_runtime_system();
   mq = calloc(1, sizeof(struct ocmq));
   snprintf(mq->uid[CBCONNECT], 40, "Mosquitto.%p_connect", cbid);
@@ -119,14 +119,16 @@ CAMLprim value mqtt_create(value id, value clean_session) {
   snprintf(mq->uid[CBLOG], 40, "Mosquitto.%p_log", cbid);
 
   mq->conn = mosquitto_new(id_, clean_session_, mq);
+  int lerrno = errno;
+  caml_acquire_runtime_system();
+
   if (NULL != mq) {
-    result = wrap_result(MOSQ_ERR_SUCCESS, errno);
+    result = wrap_result(MOSQ_ERR_SUCCESS, (value)mq, lerrno);
   } else {
-    result = wrap_result(MOSQ_ERR_ERRNO, errno);
+    result = wrap_result(MOSQ_ERR_ERRNO, Val_unit, lerrno);
   }
   free(id_);
 
-  caml_acquire_runtime_system();
   CAMLreturn(result);
 }
 
@@ -150,9 +152,10 @@ CAMLprim value mqtt_connect(value mqtt, value host, value port, value keepalive)
 
   caml_release_runtime_system();
   rc = mosquitto_connect(mq->conn, host_, port_, keepalive_);
-  result = wrap_result(rc, errno);
-  free(host_);
+  int lerrno = errno;
   caml_acquire_runtime_system();
+  result = wrap_result(rc, Val_unit, lerrno);
+  free(host_);
 
   CAMLreturn(result);
 }
@@ -168,8 +171,9 @@ CAMLprim value mqtt_reconnect(value mqtt) {
 
   caml_release_runtime_system();
   rc = mosquitto_reconnect(mq->conn);
-  result = wrap_result(rc, errno);
   caml_acquire_runtime_system();
+  int lerrno = errno;
+  result = wrap_result(rc, Val_unit, lerrno);
 
   CAMLreturn(result);
 }
@@ -185,8 +189,9 @@ CAMLprim value mqtt_disconnect(value mqtt) {
 
   caml_release_runtime_system();
   rc = mosquitto_disconnect(mq->conn);
-  result = wrap_result(rc, errno);
+  int lerrno = errno;
   caml_acquire_runtime_system();
+  result = wrap_result(rc, Val_unit, lerrno);
 
   CAMLreturn(result);
 }
@@ -219,10 +224,11 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
 
   caml_release_runtime_system();
   rc = mosquitto_publish(mq->conn, mid_pt, topic, payload_len, payload, qos, retain);
-  result = wrap_result(rc, errno);
+  int lerrno = errno;
+  caml_acquire_runtime_system();
+  result = wrap_result(rc, Val_unit, lerrno);
   free(topic);
   free(payload);
-  caml_acquire_runtime_system();
 
   CAMLreturn(result);
 }
@@ -246,15 +252,16 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
 
   caml_release_runtime_system();
   rc = mosquitto_subscribe(mq->conn, NULL, topic_, qos_);
-  result = wrap_result(rc, errno);
-  free(topic_);
+  int lerrno = errno;
   caml_acquire_runtime_system();
+  result = wrap_result(rc, Val_unit, lerrno);
+  free(topic_);
 
   CAMLreturn(result);
 }
 
 void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_message *msg_) {
-  const value * f = NULL;
+  static const value * f = NULL;
   struct ocmq *mq;
   size_t topic_len;
   value msg, payload;
@@ -558,8 +565,9 @@ CAMLprim value mqtt_loop(value mqtt, value timeout, value max_packets) {
 
   caml_release_runtime_system();
   rc = mosquitto_loop(mq->conn, timeout_, max_packets_);
-  result = wrap_result(rc, errno);
+  int lerrno = errno;
   caml_acquire_runtime_system();
+  result = wrap_result(rc, Val_unit, lerrno);
 
   CAMLreturn(result);
 }
@@ -577,8 +585,9 @@ CAMLprim value mqtt_loop_forever(value mqtt, value timeout, value max_packets) {
 
   caml_release_runtime_system();
   rc = mosquitto_loop_forever(mq->conn, timeout_, max_packets_);
-  result = wrap_result(rc, errno);
+  int lerrno = errno;
   caml_acquire_runtime_system();
+  result = wrap_result(rc, Val_unit, lerrno);
 
   CAMLreturn(result);
 }
@@ -606,8 +615,9 @@ CAMLprim value mqtt_loop_read(value mqtt, value max_packets) {
 
   caml_release_runtime_system();
   rc = mosquitto_loop_read(mq->conn, max_packets_);
-  result = wrap_result(rc, errno);
+  int lerrno = errno;
   caml_acquire_runtime_system();
+  result = wrap_result(rc, Val_unit, lerrno);
 
   CAMLreturn(result);
 }
@@ -624,8 +634,9 @@ CAMLprim value mqtt_loop_write(value mqtt, value max_packets) {
 
   caml_release_runtime_system();
   rc = mosquitto_loop_write(mq->conn, max_packets_);
-  result = wrap_result(rc, errno);
+  int lerrno = errno;
   caml_acquire_runtime_system();
+  result = wrap_result(rc, Val_unit, lerrno);
 
   CAMLreturn(result);
 }
@@ -640,8 +651,9 @@ CAMLprim value mqtt_loop_misc(value mqtt) {
 
   caml_release_runtime_system();
   rc = mosquitto_loop_misc(mq->conn);
-  result = wrap_result(rc, errno);
+  int lerrno = errno;
   caml_acquire_runtime_system();
+  result = wrap_result(rc, Val_unit, lerrno);
 
   CAMLreturn(result);
 }

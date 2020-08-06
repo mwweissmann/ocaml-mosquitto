@@ -23,6 +23,8 @@ val connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Resul
 
 val reconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result
 
+val disconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result
+
 val publish : t -> Message.t -> (unit, [>`EUnix of Unix.error]) Result.result
 
 val subscribe : t -> string -> int -> (unit, [>`EUnix of Unix.error]) Result.result

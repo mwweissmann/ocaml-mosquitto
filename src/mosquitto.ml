@@ -34,6 +34,8 @@ external create : string -> bool -> (t, [>`EUnix of Unix.error]) Result.result =
 
 external connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_connect"
 
+external disconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_disconnect"
+
 external reconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_reconnect"
 
 external publish : t -> Message.t -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_publish"

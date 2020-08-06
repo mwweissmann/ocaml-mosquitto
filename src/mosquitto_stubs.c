@@ -174,6 +174,23 @@ CAMLprim value mqtt_reconnect(value mqtt) {
   CAMLreturn(result);
 }
 
+CAMLprim value mqtt_disconnect(value mqtt) {
+  CAMLparam1(mqtt);
+  CAMLlocal1(result);
+
+  struct ocmq *mq;
+  int rc;
+
+  mq = (struct ocmq*)mqtt;
+
+  caml_release_runtime_system();
+  rc = mosquitto_disconnect(mq->conn);
+  result = wrap_result(rc, errno);
+  caml_acquire_runtime_system();
+
+  CAMLreturn(result);
+}
+
 CAMLprim value mqtt_publish(value mqtt, value msg) {
   CAMLparam2(mqtt, msg);
   CAMLlocal1(result);

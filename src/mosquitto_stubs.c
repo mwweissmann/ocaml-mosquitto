@@ -261,7 +261,6 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
 }
 
 void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_message *msg_) {
-  static const value * f = NULL;
   struct ocmq *mq;
   size_t topic_len;
   value msg, payload;
@@ -270,10 +269,10 @@ void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_me
 
   caml_acquire_runtime_system();
 
-  if (NULL == f) {
-    f = caml_named_value(mq->uid[CBMESSAGE]);
+  if (NULL == mq->cb[CBMESSAGE]) {
+    mq->cb[CBMESSAGE] = caml_named_value(mq->uid[CBMESSAGE]);
   }
-  if (NULL != f) {
+  if (NULL != mq->cb[CBMESSAGE]) {
     msg = caml_alloc_tuple(5);
 
     payload = caml_alloc_string(msg_->payloadlen);
@@ -289,7 +288,7 @@ void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_me
     Store_field(msg, 3, Val_int(msg_->qos));
     Store_field(msg, 4, Val_bool(msg_->retain));
 
-    caml_callback(*f, msg);
+    caml_callback(*(mq->cb[CBMESSAGE]), msg);
   }
 
   caml_release_runtime_system();

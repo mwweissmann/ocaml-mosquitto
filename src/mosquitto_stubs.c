@@ -28,6 +28,8 @@
 
 static value eunix;
 
+static char * callback_id = (char *) 0;
+
 typedef enum callback {
   CBCONNECT = 0,
   CBDISCONNECT = 1,
@@ -41,7 +43,7 @@ typedef enum callback {
 struct ocmq {
   struct mosquitto *conn;
   value *cb[7];
-  char uid[7][32];
+  char uid[7][40];
 };
 
 CAMLprim value mqtt_initialize(value unit) {
@@ -105,15 +107,17 @@ CAMLprim value mqtt_create(value id, value clean_session) {
 
   clean_session_ = Bool_val(clean_session);
 
+  void *cbid = callback_id++;
+  
   caml_release_runtime_system();
   mq = calloc(1, sizeof(struct ocmq));
-  snprintf(mq->uid[CBCONNECT], 32, "%p_connect", (void*)mq);
-  snprintf(mq->uid[CBDISCONNECT], 32, "%p_disconnect", (void*)mq);
-  snprintf(mq->uid[CBPUBLISH], 32, "%p_publish", (void*)mq);
-  snprintf(mq->uid[CBMESSAGE], 32, "%p_message", (void*)mq);
-  snprintf(mq->uid[CBSUBSCRIBE], 32, "%p_subscribe", (void*)mq);
-  snprintf(mq->uid[CBUNSUBSCRIBE], 32, "%p_unsubscribe", (void*)mq);
-  snprintf(mq->uid[CBLOG], 32, "%p_log", (void*)mq);
+  snprintf(mq->uid[CBCONNECT], 40, "Mosquitto.%p_connect", cbid);
+  snprintf(mq->uid[CBDISCONNECT], 40, "Mosquitto.%p_disconnect", cbid);
+  snprintf(mq->uid[CBPUBLISH], 40, "Mosquitto.%p_publish", cbid);
+  snprintf(mq->uid[CBMESSAGE], 40, "Mosquitto.%p_message", cbid);
+  snprintf(mq->uid[CBSUBSCRIBE], 40, "Mosquitto.%p_subscribe", cbid);
+  snprintf(mq->uid[CBUNSUBSCRIBE], 40, "Mosquitto.%p_unsubscribe", cbid);
+  snprintf(mq->uid[CBLOG], 40, "Mosquitto.%p_log", cbid);
 
   mq->conn = mosquitto_new(id_, clean_session_, mq);
   if (NULL != mq) {

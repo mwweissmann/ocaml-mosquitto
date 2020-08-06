@@ -42,7 +42,7 @@ typedef enum callback {
 
 struct ocmq {
   struct mosquitto *conn;
-  value *cb[7];
+  const value *cb[7];
   char uid[7][40];
 };
 
@@ -187,7 +187,7 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
   qos = Long_val(Field(msg, 3));
   retain = Bool_val(Field(msg, 4));
   mid = Long_val(Field(msg, 0));
-  mid_pt = ((mid && 0xFFFF) == mid) ? &mid : NULL;
+  mid_pt = ((mid & 0xFFFF) == mid) ? &mid : NULL;
 
   mq = (struct ocmq*)mqtt;
 
@@ -237,7 +237,7 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
 }
 
 void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_message *msg_) {
-  static value * f = NULL;
+  const value * f = NULL;
   struct ocmq *mq;
   size_t topic_len;
   value msg, payload;

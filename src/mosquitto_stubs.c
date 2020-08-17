@@ -21,6 +21,7 @@
 #include <caml/threads.h> 
 #include <caml/callback.h>
 #include <caml/fail.h>
+#include <caml/custom.h>
 #include <caml/unixsupport.h>
 
 #define RESULT_OK caml_alloc(1, 0)
@@ -45,6 +46,8 @@ struct ocmq {
   const value *cb[7];
   char uid[7][40];
 };
+
+#define OCMQ(val) ((struct ocmq **) Data_custom_val(val))
 
 CAMLprim value mqtt_initialize(value unit) {
   CAMLparam1(unit);
@@ -90,9 +93,20 @@ static value wrap_result(int rc, value retval, int lerrno) {
   CAMLreturn(result);
 }
 
+static struct custom_operations mq_ops = {
+  .identifier = "Mosquitto.mqtt",
+  .finalize = NULL,
+  .compare = NULL,
+  .hash = NULL,
+  .serialize = NULL,
+  .deserialize = NULL,
+  .compare_ext = NULL,
+  .fixed_length = NULL
+};
+
 CAMLprim value mqtt_create(value id, value clean_session) {
   CAMLparam2(id, clean_session);
-  CAMLlocal3(result, mqtt, uid);
+  CAMLlocal4(result, mqcustom, mqtt, uid);
 
   struct ocmq *mq;
   char *id_;
@@ -123,11 +137,26 @@ CAMLprim value mqtt_create(value id, value clean_session) {
   caml_acquire_runtime_system();
 
   if (NULL != mq) {
-    result = wrap_result(MOSQ_ERR_SUCCESS, (value)mq, lerrno);
+    mqcustom = caml_alloc_custom(&mq_ops, sizeof(struct ocmq *), 0, 1);
+    *(OCMQ(mqcustom)) = mq;
+    result = wrap_result(MOSQ_ERR_SUCCESS, mqcustom, lerrno);
   } else {
     result = wrap_result(MOSQ_ERR_ERRNO, Val_unit, lerrno);
   }
   free(id_);
+
+  CAMLreturn(result);
+}
+
+CAMLprim value mqtt_destroy(value mqtt) {
+  CAMLparam1(mqtt);
+  CAMLlocal1(result);
+
+  struct ocmq *mq;
+
+  mq = *(OCMQ(mqtt));
+  mosquitto_destroy(mq->conn);
+  mq->conn = NULL;
 
   CAMLreturn(result);
 }
@@ -148,8 +177,8 @@ CAMLprim value mqtt_connect(value mqtt, value host, value port, value keepalive)
   port_ = Long_val(port);
   keepalive_ = Long_val(keepalive);
 
-  mq = (struct ocmq*)mqtt;
-
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
   caml_release_runtime_system();
   rc = mosquitto_connect(mq->conn, host_, port_, keepalive_);
   int lerrno = errno;
@@ -167,7 +196,8 @@ CAMLprim value mqtt_reconnect(value mqtt) {
   struct ocmq *mq;
   int rc;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
   rc = mosquitto_reconnect(mq->conn);
@@ -185,7 +215,8 @@ CAMLprim value mqtt_disconnect(value mqtt) {
   struct ocmq *mq;
   int rc;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
   rc = mosquitto_disconnect(mq->conn);
@@ -211,7 +242,8 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
   mid = Long_val(Field(msg, 0));
   mid_pt = ((mid & 0xFFFF) == mid) ? &mid : NULL;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   topic_len = caml_string_length(Field(msg, 1));
   topic = calloc(1, topic_len + 1);
@@ -243,7 +275,8 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
   int rc, qos_;
 
   qos_ = Long_val(qos);
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   topic_len = caml_string_length(topic);
   topic_ = calloc(1, topic_len + 1);
@@ -266,6 +299,7 @@ void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_me
   value msg, payload;
 
   mq = (struct ocmq*)obj;
+  if (mq->conn == NULL) return;
 
   caml_acquire_runtime_system();
 
@@ -296,9 +330,11 @@ void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_me
 
 void mqtt_callback_log(struct mosquitto *m, void *obj, int lvl, const char *str) {
   struct ocmq *mq;
-  mq = (struct ocmq*)obj;
   value str_;
   size_t len;
+
+  mq = (struct ocmq*)obj;
+  if (mq->conn == NULL) return;
 
   caml_acquire_runtime_system();
 
@@ -318,6 +354,7 @@ void mqtt_callback_log(struct mosquitto *m, void *obj, int lvl, const char *str)
 void mqtt_callback_con(struct mosquitto *m, void *obj, int rc) {
   struct ocmq *mq;
   mq = (struct ocmq*)obj;
+  if (mq->conn == NULL) return;
 
   caml_acquire_runtime_system();
 
@@ -334,6 +371,7 @@ void mqtt_callback_con(struct mosquitto *m, void *obj, int rc) {
 void mqtt_callback_dco(struct mosquitto *m, void *obj, int rc) {
   struct ocmq *mq;
   mq = (struct ocmq*)obj;
+  if (mq->conn == NULL) return;
 
   caml_acquire_runtime_system();
 
@@ -352,6 +390,7 @@ void mqtt_callback_sub(struct mosquitto *m, void *obj, int mid, int qos_count, c
   value cli, cons;
   int i;
   mq = (struct ocmq*)obj;
+  if (mq->conn == NULL) return;
 
   caml_acquire_runtime_system();
 
@@ -375,6 +414,7 @@ void mqtt_callback_sub(struct mosquitto *m, void *obj, int mid, int qos_count, c
 void mqtt_callback_usu(struct mosquitto *m, void *obj, int rc) {
   struct ocmq *mq;
   mq = (struct ocmq*)obj;
+  if (mq->conn == NULL) return;
 
   caml_acquire_runtime_system();
 
@@ -391,6 +431,7 @@ void mqtt_callback_usu(struct mosquitto *m, void *obj, int rc) {
 void mqtt_callback_pub(struct mosquitto *m, void *obj, int rc) {
   struct ocmq *mq;
   mq = (struct ocmq*)obj;
+  if (mq->conn == NULL) return;
 
   caml_acquire_runtime_system();
 
@@ -410,7 +451,8 @@ CAMLprim value mqtt_connect_callback_set(value mqtt) {
   size_t len;
   struct ocmq *mq;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
 
@@ -431,7 +473,8 @@ CAMLprim value mqtt_disconnect_callback_set(value mqtt) {
   size_t len;
   struct ocmq *mq;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
 
@@ -452,11 +495,12 @@ CAMLprim value mqtt_subscribe_callback_set(value mqtt) {
   size_t len;
   struct ocmq *mq;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
 
-  mosquitto_connect_callback_set(mq->conn, mqtt_callback_con);
+  mosquitto_subscribe_callback_set(mq->conn, mqtt_callback_sub);
 
   caml_acquire_runtime_system();
 
@@ -473,11 +517,12 @@ CAMLprim value mqtt_unsubscribe_callback_set(value mqtt) {
   size_t len;
   struct ocmq *mq;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
 
-  mosquitto_connect_callback_set(mq->conn, mqtt_callback_usu);
+  mosquitto_unsubscribe_callback_set(mq->conn, mqtt_callback_usu);
 
   caml_acquire_runtime_system();
 
@@ -494,7 +539,8 @@ CAMLprim value mqtt_publish_callback_set(value mqtt) {
   size_t len;
   struct ocmq *mq;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
 
@@ -515,7 +561,8 @@ CAMLprim value mqtt_log_callback_set(value mqtt) {
   size_t len;
   struct ocmq *mq;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
 
@@ -536,7 +583,8 @@ CAMLprim value mqtt_message_callback_set(value mqtt) {
   size_t len;
   struct ocmq *mq;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
 
@@ -557,7 +605,8 @@ CAMLprim value mqtt_loop(value mqtt, value timeout, value max_packets) {
   struct ocmq *mq;
   int timeout_, max_packets_, rc;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
   timeout_ = Long_val(timeout);
 
   max_packets_ = Long_val(max_packets);
@@ -577,7 +626,8 @@ CAMLprim value mqtt_loop_forever(value mqtt, value timeout, value max_packets) {
   struct ocmq *mq;
   int timeout_, max_packets_, rc;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
   timeout_ = Long_val(timeout);
 
   max_packets_ = Long_val(max_packets);
@@ -596,7 +646,8 @@ CAMLprim value mqtt_socket(value mqtt) {
   int fd;
   struct ocmq *mq;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
   fd = mosquitto_socket(mq->conn);
 
   CAMLreturn(Val_long(fd));
@@ -608,7 +659,8 @@ CAMLprim value mqtt_loop_read(value mqtt, value max_packets) {
   struct ocmq *mq;
   int max_packets_, rc;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   max_packets_ = Long_val(max_packets);
 
@@ -627,7 +679,8 @@ CAMLprim value mqtt_loop_write(value mqtt, value max_packets) {
   struct ocmq *mq;
   int max_packets_, rc;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   max_packets_ = Long_val(max_packets);
 
@@ -646,7 +699,8 @@ CAMLprim value mqtt_loop_misc(value mqtt) {
   struct ocmq *mq;
   int rc;
 
-  mq = (struct ocmq*)mqtt;
+  mq = *(OCMQ(mqtt));
+  if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
 
   caml_release_runtime_system();
   rc = mosquitto_loop_misc(mq->conn);

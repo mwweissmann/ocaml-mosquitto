@@ -19,9 +19,13 @@ end
 
 val create : string -> bool -> (t, [>`EUnix of Unix.error]) Result.result
 
+val destroy : t -> unit
+
 val connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
 
 val reconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result
+
+val disconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result
 
 val publish : t -> Message.t -> (unit, [>`EUnix of Unix.error]) Result.result
 

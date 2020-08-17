@@ -32,7 +32,11 @@ end
 
 external create : string -> bool -> (t, [>`EUnix of Unix.error]) Result.result = "mqtt_create"
 
+external destroy : t -> unit = "mqtt_destroy"
+
 external connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_connect"
+
+external disconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_disconnect"
 
 external reconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_reconnect"
 

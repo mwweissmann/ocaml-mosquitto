@@ -1,0 +1,14 @@
+#! /bin/sh
+
+if ! pkg-config --version >/dev/null; then
+    echo "Error: pkg-config not found" >&2
+    exit 1
+fi
+
+if ! pkg-config libmosquitto; then
+    echo "Error: libmosquitto.pc not found" >&2
+    exit 1
+fi
+
+echo 'mosquitto_cflags="'`pkg-config --cflags libmosquitto`'"' >setup.data
+echo 'mosquitto_libs="'`pkg-config --libs libmosquitto`'"' >>setup.data

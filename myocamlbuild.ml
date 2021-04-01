@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 9e17a699154a32293c2ec396c2075f1a) *)
+(* DO NOT EDIT (digest: e5c26e0af70b5dc989a9c57143b0cd98) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -897,15 +897,13 @@ let package_default =
                       A "-ccopt";
                       A "-Wno-unused-parameter";
                       A "-ccopt";
-                      A "-I";
-                      A "-ccopt";
-                      A "${libdir}"
+                      A "${mosquitto_cflags}"
                    ])
             ]);
           (["oasis_library_mosquitto_cclib"; "link"],
-            [(OASISExpr.EBool true, S [A "-cclib"; A "-lmosquitto"])]);
+            [(OASISExpr.EBool true, S [A "-cclib"; A "${mosquitto_libs}"])]);
           (["oasis_library_mosquitto_cclib"; "ocamlmklib"; "c"],
-            [(OASISExpr.EBool true, S [A "-lmosquitto"])])
+            [(OASISExpr.EBool true, S [A "${mosquitto_libs}"])])
        ];
      includes = [("tools", ["src"])]
   }
@@ -915,6 +913,6 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 919 "myocamlbuild.ml"
+# 917 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

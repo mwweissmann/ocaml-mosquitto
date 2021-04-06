@@ -8,6 +8,7 @@ doc: "http://github.com/mwweissmann/ocaml-mosquitto"
 dev-repo: "git://github.com/mwweissmann/ocaml-mosquitto.git"
 bug-reports: "https://github.com/mwweissmann/ocaml-mosquitto/issues"
 build: [
+  ["./configure"]
   ["ocaml" "setup.ml" "-configure"]
   ["ocaml" "setup.ml" "-build"]
   ["ocaml" "setup.ml" "-doc"] {with-doc}

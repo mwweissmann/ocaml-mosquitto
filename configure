@@ -6,8 +6,10 @@ if ! pkg-config --version >/dev/null; then
 fi
 
 if ! pkg-config libmosquitto; then
-    echo "Error: libmosquitto.pc not found" >&2
-    exit 1
+    echo "Warning: libmosquitto.pc not found - assuming standard locations" >&2
+    echo 'mosquitto_cflags=""' > setup.data
+    echo 'mosquitto_libs="-lmosquitto"' >> setup.data
+    exit 0
 fi
 
 echo 'mosquitto_cflags="'`pkg-config --cflags libmosquitto`'"' >setup.data

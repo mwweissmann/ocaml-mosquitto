@@ -34,7 +34,7 @@ external create : string -> bool -> (t, [>`EUnix of Unix.error]) Result.result =
 
 external destroy : t -> unit = "mqtt_destroy"
 
-external set_basic_auth : t -> string -> string -> unit, [>`EUnix of Unix.error]) Result.result = "mqtt_set_basic_auth"
+external set_basic_auth : t -> string -> string -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_set_basic_auth"
 
 external connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result = "mqtt_connect"
 

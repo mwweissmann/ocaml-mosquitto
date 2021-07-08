@@ -21,6 +21,8 @@ val create : string -> bool -> (t, [>`EUnix of Unix.error]) Result.result
 
 val destroy : t -> unit
 
+val set_basic_auth : t -> string -> string -> unit, [>`EUnix of Unix.error]) Result.result
+
 val connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
 
 val reconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result

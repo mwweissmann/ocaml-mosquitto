@@ -161,6 +161,18 @@ CAMLprim value mqtt_destroy(value mqtt) {
   CAMLreturn(result);
 }
 
+CAMLprim value mqtt_set_basic_auth(value mqtt, value username, value password) {
+    CAMLparam3(mqtt, username, password);
+    CAMLlocal1(result);
+
+    struct ocmq *mq;
+    mq = *(OCMQ(mqtt));
+    int rc = mosquitto_username_pw_set(mq->conn, String_val(username), String_val(password));
+    result = wrap_result(rc, Val_unit, errno);
+
+    CAMLreturn(result);
+}
+
 CAMLprim value mqtt_connect(value mqtt, value host, value port, value keepalive) {
   CAMLparam4(mqtt, host, port, keepalive);
   CAMLlocal1(result);

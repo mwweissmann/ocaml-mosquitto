@@ -26,7 +26,7 @@ depends: [
   "ocamlbuild" {build}
   "conf-libmosquitto"
 ]
-synopsis: "mosquitto"
+synopsis: "Bindings for the mosquitto library"
 description:
   "The mosquitto library provides bindings to libmosquitto, the MQTT client library of the mosquitto server"
 flags: light-uninstall

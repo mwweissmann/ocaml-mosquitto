@@ -305,10 +305,31 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
   CAMLreturn(result);
 }
 
+static value extract_message_tuple(const struct mosquitto_message *msg_) {
+  CAMLparam0();
+  CAMLlocal3(msg, payload, topic);
+
+  size_t topic_len;
+
+  msg = caml_alloc_tuple(5);
+
+  payload = caml_alloc_initialized_string(msg_->payloadlen, msg_->payload);
+
+  topic_len = strlen(msg_->topic);
+  topic = caml_alloc_initialized_string(topic_len, msg_->topic);
+
+  Store_field(msg, 0, Val_int(msg_->mid));
+  Store_field(msg, 1, topic);
+  Store_field(msg, 2, payload);
+  Store_field(msg, 3, Val_int(msg_->qos));
+  Store_field(msg, 4, Val_bool(msg_->retain));
+
+  CAMLreturn(msg);
+}
+
 void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_message *msg_) {
   struct ocmq *mq;
-  size_t topic_len;
-  value msg, payload;
+  value msg;
 
   mq = (struct ocmq*)obj;
   if (mq->conn == NULL) return;
@@ -319,21 +340,7 @@ void mqtt_callback_msg(struct mosquitto *m, void *obj, const struct mosquitto_me
     mq->cb[CBMESSAGE] = caml_named_value(mq->uid[CBMESSAGE]);
   }
   if (NULL != mq->cb[CBMESSAGE]) {
-    msg = caml_alloc_tuple(5);
-
-    payload = caml_alloc_string(msg_->payloadlen);
-    memcpy(String_val(payload), msg_->payload, msg_->payloadlen);
-
-    topic_len = strlen(msg_->topic);
-    value topic = caml_alloc_string(topic_len);
-    memcpy(String_val(topic), msg_->topic, topic_len);
-
-    Store_field(msg, 0, Val_int(msg_->mid));
-    Store_field(msg, 1, topic);
-    Store_field(msg, 2, payload);
-    Store_field(msg, 3, Val_int(msg_->qos));
-    Store_field(msg, 4, Val_bool(msg_->retain));
-
+    msg = extract_message_tuple(msg_);
     caml_callback(*(mq->cb[CBMESSAGE]), msg);
   }
 
@@ -355,8 +362,7 @@ void mqtt_callback_log(struct mosquitto *m, void *obj, int lvl, const char *str)
   }
   if (NULL != mq->cb[CBLOG]) {
     len = strlen(str);
-    str_ = caml_alloc_string(len);
-    memcpy(String_val(str_), str, len);
+    str_ = caml_alloc_initialized_string(len, str);
     caml_callback2(*(mq->cb[CBLOG]), Long_val(lvl), str_);
   }
 
@@ -397,10 +403,26 @@ void mqtt_callback_dco(struct mosquitto *m, void *obj, int rc) {
   caml_release_runtime_system();
 }
 
+static value extract_qos_list(int qos_count, const int *qos) {
+  CAMLparam0();
+  CAMLlocal2(cli, cons);
+
+  int i;
+
+  cli = Val_emptylist;
+  for (i = qos_count; i > 0; i--) {
+    cons = caml_alloc(2, 0);
+    Store_field(cons, 0, Val_long(qos[i - 1]));
+    Store_field(cons, 1, cli);
+    cli = cons;
+  }
+
+  CAMLreturn(cli);
+}
+
 void mqtt_callback_sub(struct mosquitto *m, void *obj, int mid, int qos_count, const int *qos) {
   struct ocmq *mq;
-  value cli, cons;
-  int i;
+  value cli;
   mq = (struct ocmq*)obj;
   if (mq->conn == NULL) return;
 
@@ -410,13 +432,7 @@ void mqtt_callback_sub(struct mosquitto *m, void *obj, int mid, int qos_count, c
     mq->cb[CBSUBSCRIBE] = caml_named_value(mq->uid[CBSUBSCRIBE]);
   }
   if (NULL != mq->cb[CBSUBSCRIBE]) {
-    cli = Val_emptylist;
-    for (i = qos_count; i > 0; i--) {
-      cons = caml_alloc(2, 0);
-      Store_field(cons, 0, Val_long(qos[i - 1]));
-      Store_field(cons, 1, cli);
-      cli = cons;
-    }
+    cli = extract_qos_list(qos_count, qos);
     caml_callback2(*(mq->cb[CBSUBSCRIBE]), Val_long(mid), cli);
   }
 
@@ -473,8 +489,7 @@ CAMLprim value mqtt_connect_callback_set(value mqtt) {
   caml_acquire_runtime_system();
 
   len = strlen(mq->uid[CBCONNECT]);
-  uid = caml_alloc_string(len);
-  memcpy(String_val(uid), (void*)mq->uid[CBCONNECT], len);
+  uid = caml_alloc_initialized_string(len, (void*)mq->uid[CBCONNECT]);
 
   CAMLreturn(uid);
 }
@@ -495,8 +510,7 @@ CAMLprim value mqtt_disconnect_callback_set(value mqtt) {
   caml_acquire_runtime_system();
 
   len = strlen(mq->uid[CBDISCONNECT]);
-  uid = caml_alloc_string(len);
-  memcpy(String_val(uid), (void*)mq->uid[CBDISCONNECT], len);
+  uid = caml_alloc_initialized_string(len, (void*)mq->uid[CBDISCONNECT]);
 
   CAMLreturn(uid);
 }
@@ -517,8 +531,7 @@ CAMLprim value mqtt_subscribe_callback_set(value mqtt) {
   caml_acquire_runtime_system();
 
   len = strlen(mq->uid[CBSUBSCRIBE]);
-  uid = caml_alloc_string(len);
-  memcpy(String_val(uid), (void*)mq->uid[CBSUBSCRIBE], len);
+  uid = caml_alloc_initialized_string(len, (void*)mq->uid[CBSUBSCRIBE]);
 
   CAMLreturn(uid);
 }
@@ -539,8 +552,7 @@ CAMLprim value mqtt_unsubscribe_callback_set(value mqtt) {
   caml_acquire_runtime_system();
 
   len = strlen(mq->uid[CBUNSUBSCRIBE]);
-  uid = caml_alloc_string(len);
-  memcpy(String_val(uid), (void*)mq->uid[CBUNSUBSCRIBE], len);
+  uid = caml_alloc_initialized_string(len, (void*)mq->uid[CBUNSUBSCRIBE]);
 
   CAMLreturn(uid);
 }
@@ -561,8 +573,7 @@ CAMLprim value mqtt_publish_callback_set(value mqtt) {
   caml_acquire_runtime_system();
 
   len = strlen(mq->uid[CBPUBLISH]);
-  uid = caml_alloc_string(len);
-  memcpy(String_val(uid), (void*)mq->uid[CBPUBLISH], len);
+  uid = caml_alloc_initialized_string(len, (void*)mq->uid[CBPUBLISH]);
 
   CAMLreturn(uid);
 }
@@ -583,8 +594,7 @@ CAMLprim value mqtt_log_callback_set(value mqtt) {
   caml_acquire_runtime_system();
 
   len = strlen(mq->uid[CBLOG]);
-  uid = caml_alloc_string(len);
-  memcpy(String_val(uid), (void*)mq->uid[CBLOG], len);
+  uid = caml_alloc_initialized_string(len, (void*)mq->uid[CBLOG]);
 
   CAMLreturn(uid);
 }
@@ -605,8 +615,7 @@ CAMLprim value mqtt_message_callback_set(value mqtt) {
   caml_acquire_runtime_system();
 
   len = strlen(mq->uid[CBMESSAGE]);
-  uid = caml_alloc_string(len);
-  memcpy(String_val(uid), (void*)mq->uid[CBMESSAGE], len);
+  uid = caml_alloc_initialized_string(len, (void*)mq->uid[CBMESSAGE]);
 
   CAMLreturn(uid);
 }

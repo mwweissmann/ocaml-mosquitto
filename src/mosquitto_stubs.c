@@ -115,6 +115,10 @@ CAMLprim value mqtt_create(value id, value clean_session) {
 
   id_len = caml_string_length(id);
   id_ = calloc(1, 1 + id_len);
+  if (id_ == NULL) {
+      result = wrap_result(MOSQ_ERR_NOMEM, NULL, 0);
+      goto exit;
+  }
   memcpy(id_, String_val(id), id_len);
   id_[id_len] = '\0';
 
@@ -124,27 +128,34 @@ CAMLprim value mqtt_create(value id, value clean_session) {
 
   caml_release_runtime_system();
   mq = calloc(1, sizeof(struct ocmq));
-  snprintf(mq->uid[CBCONNECT], 40, "Mosquitto.%p_connect", cbid);
-  snprintf(mq->uid[CBDISCONNECT], 40, "Mosquitto.%p_disconnect", cbid);
-  snprintf(mq->uid[CBPUBLISH], 40, "Mosquitto.%p_publish", cbid);
-  snprintf(mq->uid[CBMESSAGE], 40, "Mosquitto.%p_message", cbid);
-  snprintf(mq->uid[CBSUBSCRIBE], 40, "Mosquitto.%p_subscribe", cbid);
-  snprintf(mq->uid[CBUNSUBSCRIBE], 40, "Mosquitto.%p_unsubscribe", cbid);
-  snprintf(mq->uid[CBLOG], 40, "Mosquitto.%p_log", cbid);
-
-  mq->conn = mosquitto_new(id_, clean_session_, mq);
+  if (mq != NULL) {
+      snprintf(mq->uid[CBCONNECT], 40, "Mosquitto.%p_connect", cbid);
+      snprintf(mq->uid[CBDISCONNECT], 40, "Mosquitto.%p_disconnect", cbid);
+      snprintf(mq->uid[CBPUBLISH], 40, "Mosquitto.%p_publish", cbid);
+      snprintf(mq->uid[CBMESSAGE], 40, "Mosquitto.%p_message", cbid);
+      snprintf(mq->uid[CBSUBSCRIBE], 40, "Mosquitto.%p_subscribe", cbid);
+      snprintf(mq->uid[CBUNSUBSCRIBE], 40, "Mosquitto.%p_unsubscribe", cbid);
+      snprintf(mq->uid[CBLOG], 40, "Mosquitto.%p_log", cbid);
+      mq->conn = mosquitto_new(id_, clean_session_, mq);
+  };
   int lerrno = errno;
   caml_acquire_runtime_system();
+  free(id_);
 
-  if (NULL != mq) {
+  if (mq == NULL) {
+      result = wrap_result(MOSQ_ERR_NOMEM, Val_unit, 0);
+      goto exit;
+  };
+
+  if (mq->conn != NULL) {
     mqcustom = caml_alloc_custom(&mq_ops, sizeof(struct ocmq *), 0, 1);
     *(OCMQ(mqcustom)) = mq;
     result = wrap_result(MOSQ_ERR_SUCCESS, mqcustom, lerrno);
   } else {
     result = wrap_result(MOSQ_ERR_ERRNO, Val_unit, lerrno);
   }
-  free(id_);
 
+exit:
   CAMLreturn(result);
 }
 
@@ -167,6 +178,7 @@ CAMLprim value mqtt_set_basic_auth(value mqtt, value username, value password) {
 
     struct ocmq *mq;
     mq = *(OCMQ(mqtt));
+    if (mq->conn == NULL) caml_invalid_argument("Mosquitto: already destroyed");
     int rc = mosquitto_username_pw_set(mq->conn, String_val(username), String_val(password));
     result = wrap_result(rc, Val_unit, errno);
 
@@ -178,11 +190,15 @@ CAMLprim value mqtt_connect(value mqtt, value host, value port, value keepalive)
   CAMLlocal1(result);
 
   struct ocmq *mq;
-  char *host_;
+  char *host_ = NULL;
   size_t len;
   int port_, keepalive_, rc;
   len = caml_string_length(host);
   host_ = calloc(1, 1 + len);
+  if (host_ == NULL) {
+      result = wrap_result(MOSQ_ERR_NOMEM, Val_unit, 0);
+      goto exit;
+  };
   memcpy(host_, String_val(host), len);
   host_[len] = '\0';
 
@@ -196,8 +212,9 @@ CAMLprim value mqtt_connect(value mqtt, value host, value port, value keepalive)
   int lerrno = errno;
   caml_acquire_runtime_system();
   result = wrap_result(rc, Val_unit, lerrno);
-  free(host_);
 
+exit:
+  free(host_);
   CAMLreturn(result);
 }
 
@@ -243,7 +260,8 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
   CAMLparam2(mqtt, msg);
   CAMLlocal1(result);
 
-  char *topic, *payload;
+  char *topic = NULL;
+  char *payload = NULL;
   size_t topic_len, payload_len;
   struct ocmq *mq;
   int qos, rc, mid, *mid_pt;
@@ -259,11 +277,20 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
 
   topic_len = caml_string_length(Field(msg, 1));
   topic = calloc(1, topic_len + 1);
+  if (topic == NULL) {
+      result = wrap_result(MOSQ_ERR_NOMEM, Val_unit, 0);
+      goto exit;
+  };
   memcpy(topic, String_val(Field(msg, 1)), topic_len);
   topic[topic_len] = '\0';
 
   payload_len = caml_string_length(Field(msg, 2));
   payload = calloc(1, payload_len);
+  if (payload == NULL) {
+      free(topic);
+      result = wrap_result(MOSQ_ERR_NOMEM, Val_unit, 0);
+      goto exit;
+  };
   memcpy(payload, String_val(Field(msg, 2)), payload_len);
 
   caml_release_runtime_system();
@@ -271,9 +298,10 @@ CAMLprim value mqtt_publish(value mqtt, value msg) {
   int lerrno = errno;
   caml_acquire_runtime_system();
   result = wrap_result(rc, Val_unit, lerrno);
+
+exit:
   free(topic);
   free(payload);
-
   CAMLreturn(result);
 }
 
@@ -281,7 +309,7 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
   CAMLparam3(mqtt, topic, qos);
   CAMLlocal1(result);
 
-  char *topic_;
+  char *topic_ = NULL;
   size_t topic_len;
   struct ocmq *mq;
   int rc, qos_;
@@ -292,6 +320,10 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
 
   topic_len = caml_string_length(topic);
   topic_ = calloc(1, topic_len + 1);
+  if (topic_ == NULL) {
+      result = wrap_result(MOSQ_ERR_NOMEM, Val_unit, 0);
+      goto exit;
+  };
   memcpy(topic_, String_val(topic), topic_len);
   topic_[topic_len] = '\0';
 
@@ -300,8 +332,9 @@ CAMLprim value mqtt_subscribe(value mqtt, value topic, value qos) {
   int lerrno = errno;
   caml_acquire_runtime_system();
   result = wrap_result(rc, Val_unit, lerrno);
-  free(topic_);
 
+exit:
+  free(topic_);
   CAMLreturn(result);
 }
 

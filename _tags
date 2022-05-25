@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a96c16f3500d08642a81e85bced957ab)
+# DO NOT EDIT (digest: 418ea7d22e9300e74a68229777581ce4)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -24,24 +24,14 @@ true: annot, bin_annot
 "src/libmosquitto_stubs.a": oasis_library_mosquitto_cclib
 "src/dllmosquitto_stubs.so": oasis_library_mosquitto_cclib
 <src/mosquitto.{cma,cmxa}>: use_libmosquitto_stubs
-<src/*.ml{,i,y}>: pkg_bytes
-<src/*.ml{,i,y}>: pkg_result
 <src/*.ml{,i,y}>: pkg_unix
-"src/mosquitto_stubs.c": pkg_bytes
-"src/mosquitto_stubs.c": pkg_result
 "src/mosquitto_stubs.c": pkg_unix
 # Executable subscribe
-<tools/subscribe.{native,byte}>: pkg_bytes
-<tools/subscribe.{native,byte}>: pkg_result
 <tools/subscribe.{native,byte}>: pkg_unix
 <tools/subscribe.{native,byte}>: use_mosquitto
 # Executable publish
-<tools/publish.{native,byte}>: pkg_bytes
-<tools/publish.{native,byte}>: pkg_result
 <tools/publish.{native,byte}>: pkg_unix
 <tools/publish.{native,byte}>: use_mosquitto
-<tools/*.ml{,i,y}>: pkg_bytes
-<tools/*.ml{,i,y}>: pkg_result
 <tools/*.ml{,i,y}>: pkg_unix
 <tools/*.ml{,i,y}>: use_mosquitto
 # OASIS_STOP

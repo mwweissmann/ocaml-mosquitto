@@ -17,15 +17,21 @@ module Version : sig
   val revision : int
 end
 
-val create : string -> bool -> (t, [>`EUnix of Unix.error]) Result.result
+val create : string -> bool -> (t, [>`EUnix of Unix.error]) result
 
-val connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
+val destroy : t -> unit
 
-val reconnect : t -> (unit, [>`EUnix of Unix.error]) Result.result
+val set_basic_auth : t -> string -> string -> (unit, [>`EUnix of Unix.error]) result
 
-val publish : t -> Message.t -> (unit, [>`EUnix of Unix.error]) Result.result
+val connect : t -> string -> int -> int -> (unit, [>`EUnix of Unix.error]) result
 
-val subscribe : t -> string -> int -> (unit, [>`EUnix of Unix.error]) Result.result
+val reconnect : t -> (unit, [>`EUnix of Unix.error]) result
+
+val disconnect : t -> (unit, [>`EUnix of Unix.error]) result
+
+val publish : t -> Message.t -> (unit, [>`EUnix of Unix.error]) result
+
+val subscribe : t -> string -> int -> (unit, [>`EUnix of Unix.error]) result
 
 val set_callback_message : t -> (Message.t -> unit) -> unit
 
@@ -41,14 +47,14 @@ val set_callback_unsubscribe : t -> (int -> unit) -> unit
 
 val set_callback_log : t -> (int -> string -> unit) -> unit
 
-val loop : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
+val loop : t -> int -> int -> (unit, [>`EUnix of Unix.error]) result
 
-val loop_forever : t -> int -> int -> (unit, [>`EUnix of Unix.error]) Result.result
+val loop_forever : t -> int -> int -> (unit, [>`EUnix of Unix.error]) result
 
 val socket : t -> Unix.file_descr
 
-val loop_read : t -> int -> (unit, [>`EUnix of Unix.error]) Result.result
+val loop_read : t -> int -> (unit, [>`EUnix of Unix.error]) result
 
-val loop_write : t -> int -> (unit, [>`EUnix of Unix.error]) Result.result
+val loop_write : t -> int -> (unit, [>`EUnix of Unix.error]) result
 
-val loop_misc : t -> (unit, [>`EUnix of Unix.error]) Result.result
+val loop_misc : t -> (unit, [>`EUnix of Unix.error]) result
